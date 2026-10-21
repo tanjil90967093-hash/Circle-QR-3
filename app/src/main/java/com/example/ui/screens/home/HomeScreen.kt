@@ -256,7 +256,7 @@ fun HomeScreen(
             .fillMaxSize()
             .background(screenBg)
             .statusBarsPadding()
-            .padding(top = 10.dp)
+            .padding(top = 18.dp)
     ) {
             // 1. Header (Top Bar matching reference)
             HomeHeader(
@@ -1930,13 +1930,14 @@ private fun ScanHistoryRow(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left Thumbnail or Category Badge
+            // Real Document Thumbnail / Photo Preview
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(typeColor.copy(alpha = if (thumbnailBitmap != null) 0.05f else 0.12f))
-                    .border(1.dp, typeColor.copy(alpha = 0.25f), RoundedCornerShape(10.dp)),
+                    .width(48.dp)
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (thumbnailBitmap != null) Color.Black else typeColor.copy(alpha = 0.08f))
+                    .border(1.dp, typeColor.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (thumbnailBitmap != null) {
@@ -1947,20 +1948,28 @@ private fun ScanHistoryRow(
                         modifier = Modifier.fillMaxSize()
                     )
                 } else if (scanTypeLabel == "PDF") {
-                    Text(
-                        text = "PDF",
-                        style = TextStyle(
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = typeColor
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = "PDF",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(22.dp)
                         )
-                    )
+                        Text(
+                            text = "PDF",
+                            style = TextStyle(
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                        )
+                    }
                 } else {
                     Icon(
                         imageVector = typeIcon,
                         contentDescription = scanTypeLabel,
                         tint = typeColor,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }

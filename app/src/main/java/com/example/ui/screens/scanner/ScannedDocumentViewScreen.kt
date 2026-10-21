@@ -11,6 +11,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,8 +26,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -178,6 +182,23 @@ fun ScannedDocumentViewScreen(
         }
     }
 
+    var showCompareOriginal by remember { mutableStateOf(false) }
+    var rawOriginalBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var activeEnhancementMode by remember { mutableStateOf(com.example.scanner.engine.EnhancementMode.DOCUMENT_COLOR) }
+
+    var zoomScale by remember { mutableFloatStateOf(1f) }
+    var zoomOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    // Check if raw original is available
+    LaunchedEffect(currentFile) {
+        currentFile?.let { f ->
+            withContext(Dispatchers.IO) {
+                rawOriginalBitmap = com.example.scanner.engine.ScanStorageManager.loadRawOriginal(context, f.name)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -216,11 +237,27 @@ fun ScannedDocumentViewScreen(
                     }
                 },
                 actions = {
+                    if (rawOriginalBitmap != null) {
+                        IconButton(onClick = { showCompareOriginal = !showCompareOriginal }) {
+                            Icon(
+                                imageVector = Icons.Default.Compare,
+                                contentDescription = "Compare Original",
+                                tint = if (showCompareOriginal) Color(0xFF00E676) else Color.White
+                            )
+                        }
+                    }
                     IconButton(onClick = { shareCurrentFile() }) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
                             tint = Color.White
+                        )
+                    }
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 },
@@ -292,15 +329,21 @@ fun ScannedDocumentViewScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Auto Cropped · Straightened · Crisp Text",
-                                color = Color(0xFF00E676),
+                                text = if (showCompareOriginal) "Viewing Original Raw Photo" else "Auto Cropped · Straightened · Crisp Text",
+                                color = if (showCompareOriginal) Color(0xFFFBBF24) else Color(0xFF00E676),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
-                    // Main Document Preview Frame
+                    // Main Document Preview Frame with Pinch-to-Zoom & Pan
+                    val currentBmp = if (showCompareOriginal && rawOriginalBitmap != null) {
+                        rawOriginalBitmap!!
+                    } else {
+                        displayBitmap!!
+                    }
+
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -308,18 +351,31 @@ fun ScannedDocumentViewScreen(
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF1E1E1E))
-                            .border(1.dp, Color(0xFF2A2A2A), RoundedCornerShape(12.dp)),
+                            .border(1.dp, Color(0xFF2A2A2A), RoundedCornerShape(12.dp))
+                            .pointerInput(Unit) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    zoomScale = (zoomScale * zoom).coerceIn(1f, 5f)
+                                    zoomOffset = if (zoomScale > 1f) zoomOffset + pan else Offset.Zero
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            bitmap = displayBitmap!!.asImageBitmap(),
+                            bitmap = currentBmp.asImageBitmap(),
                             contentDescription = "Scanned Document Preview",
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer(
+                                    scaleX = zoomScale,
+                                    scaleY = zoomScale,
+                                    translationX = zoomOffset.x,
+                                    translationY = zoomOffset.y
+                                )
                         )
                     }
 
-                    // Interactive Filter Chips Strip
+                    // Interactive 6-Mode Enhancement Strip
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -327,8 +383,8 @@ fun ScannedDocumentViewScreen(
                             .padding(horizontal = 14.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        DocumentFilter.values().forEach { filter ->
-                            val isSelected = filter == activeFilter
+                        com.example.scanner.engine.EnhancementMode.values().forEach { mode ->
+                            val isSelected = mode == activeEnhancementMode
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = if (isSelected) Color(0xFF00A884) else Color(0xFF242424),
@@ -339,13 +395,13 @@ fun ScannedDocumentViewScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(16.dp))
                                     .clickable {
-                                        activeFilter = filter
+                                        activeEnhancementMode = mode
                                         val base = baseBitmap ?: return@clickable
                                         scope.launch {
                                             isProcessing = true
-                                            processingMsg = "Applying ${filter.label} filter..."
+                                            processingMsg = "Applying ${mode.label}..."
                                             val filtered = withContext(Dispatchers.IO) {
-                                                DocumentProcessor.applyFilter(base, filter)
+                                                com.example.scanner.engine.DocumentEnhancementEngine.enhance(base, mode)
                                             }
                                             displayBitmap = filtered
                                             isProcessing = false
@@ -353,7 +409,7 @@ fun ScannedDocumentViewScreen(
                                     }
                             ) {
                                 Text(
-                                    text = filter.label,
+                                    text = mode.label,
                                     color = if (isSelected) Color.White else Color(0xFFCCCCCC),
                                     fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -566,6 +622,51 @@ fun ScannedDocumentViewScreen(
             dismissButton = {
                 TextButton(onClick = { showOcrModal = false }) {
                     Text("Close", color = Color.Gray)
+                }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            containerColor = Color(0xFF1E1E1E),
+            title = {
+                Text(
+                    text = "Delete Scan?",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "This will permanently remove '$documentTitle' and its processed document files.",
+                    color = Color(0xFFCCCCCC),
+                    fontSize = 13.5.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val f = currentFile
+                            if (f != null) {
+                                com.example.scanner.engine.ScanStorageManager.deleteScan(context, 0L, f.name)
+                            }
+                            showDeleteDialog = false
+                            Toast.makeText(context, "Scan deleted", Toast.LENGTH_SHORT).show()
+                            onBack()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
                 }
             }
         )

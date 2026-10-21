@@ -107,13 +107,16 @@ enum class CameraAppMode(val label: String, val isDocument: Boolean) {
 fun FullScannerScreen(
     initialMode: String = "DOCUMENT_PDF",
     onBack: () -> Unit,
-    onNavigateToResult: (content: String, format: String) -> Unit
+    onNavigateToResult: (content: String, format: String) -> Unit,
+    onNavigateToDocumentViewer: (filePath: String, title: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val repository = remember { UtilityHubApp.instance.repository }
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+
+    var lastSavedScanFile by remember { mutableStateOf<File?>(null) }
 
     // Current Workflow Step (Camera -> Crop -> Enhance -> Session)
     var currentStep by remember { mutableStateOf(CamScannerStep.CAMERA) }
@@ -283,6 +286,7 @@ fun FullScannerScreen(
                                 )
                             }
                             if (savedImg != null) {
+                                lastSavedScanFile = savedImg
                                 repository.addHistory("doc_scanner", documentName, savedImg.name)
                             }
 
@@ -351,6 +355,7 @@ fun FullScannerScreen(
                                                 )
                                             }
                                             if (savedImg != null) {
+                                                lastSavedScanFile = savedImg
                                                 repository.addHistory("doc_scanner", documentName, savedImg.name)
                                             }
 
@@ -631,7 +636,8 @@ fun FullScannerScreen(
                             },
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .padding(top = 54.dp)
+                                .statusBarsPadding()
+                                .padding(top = 62.dp)
                                 .testTag("camscanner_instructions")
                         ) {
                             val msg = when {
@@ -664,7 +670,8 @@ fun FullScannerScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopCenter)
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                                .statusBarsPadding()
+                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -926,7 +933,8 @@ fun FullScannerScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp),
+                                    .statusBarsPadding()
+                                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
@@ -1036,11 +1044,12 @@ fun FullScannerScreen(
                                 .fillMaxSize()
                                 .background(CamScannerDarkBg)
                         ) {
-                            // Top Bar: Back, Document Title + Edit, Compare Button
+                            // Top Bar: Back, Document Title + Edit, Compare Button, View Page Button
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 8.dp),
+                                    .statusBarsPadding()
+                                    .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -1085,31 +1094,67 @@ fun FullScannerScreen(
                                     }
                                 }
 
-                                // Compare Button (Press & Hold or Click)
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (showCompareOriginal) CamScannerTeal else Color(0xFF262626),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .clickable { showCompareOriginal = !showCompareOriginal }
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // Compare Button (Press & Hold or Click)
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = if (showCompareOriginal) CamScannerTeal else Color(0xFF262626),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .clickable { showCompareOriginal = !showCompareOriginal }
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Compare,
-                                            contentDescription = "Compare",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "Compare",
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Compare,
+                                                contentDescription = "Compare",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "Compare",
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+
+                                    // View Page Button (opens full document viewer)
+                                    if (lastSavedScanFile != null) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = CamScannerTeal,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .clickable {
+                                                    onNavigateToDocumentViewer(lastSavedScanFile!!.absolutePath, documentName)
+                                                }
+                                                .testTag("open_view_page_btn")
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Visibility,
+                                                    contentDescription = "View Page",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "View",
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1224,7 +1269,8 @@ fun FullScannerScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp),
+                                .statusBarsPadding()
+                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -1605,24 +1651,40 @@ fun FullScannerScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        StorageUtils.shareFile(context, savedPdfFile!!, "application/pdf")
+                        showSaveSuccessDialog = false
+                        val path = savedPdfFile?.absolutePath ?: ""
+                        if (path.isNotBlank()) {
+                            onNavigateToDocumentViewer(path, documentName)
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = CamScannerTeal)
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Share PDF")
+                    Text("View Document")
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        showSaveSuccessDialog = false
-                        currentStep = CamScannerStep.CAMERA
-                        documentPages.clear()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = {
+                            if (savedPdfFile != null) {
+                                StorageUtils.shareFile(context, savedPdfFile!!, "application/pdf")
+                            }
+                        }
+                    ) {
+                        Text("Share", color = Color.White.copy(alpha = 0.9f))
                     }
-                ) {
-                    Text("New Scan")
+                    Spacer(modifier = Modifier.width(4.dp))
+                    TextButton(
+                        onClick = {
+                            showSaveSuccessDialog = false
+                            currentStep = CamScannerStep.CAMERA
+                            documentPages.clear()
+                        }
+                    ) {
+                        Text("New Scan", color = Color.White.copy(alpha = 0.9f))
+                    }
                 }
             }
         )

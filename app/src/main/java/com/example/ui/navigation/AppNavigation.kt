@@ -169,6 +169,9 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() },
                     onNavigateToResult = { content, format ->
                         navController.navigate(Screen.ScanResult.createRoute(content, format))
+                    },
+                    onNavigateToDocumentViewer = { filePath, title ->
+                        navController.navigate(Screen.DocumentViewer.createRoute(filePath, title))
                     }
                 )
             }

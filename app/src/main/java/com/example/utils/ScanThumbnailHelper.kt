@@ -20,6 +20,7 @@ object ScanThumbnailHelper {
         try {
             val id = item.toolId.lowercase()
             val details = item.details.trim()
+            val cleanName = details.substringBefore(" (").trim()
             val title = item.title.lowercase()
 
             // 1. QR or Barcode: generate real QR preview bitmap
@@ -27,6 +28,14 @@ object ScanThumbnailHelper {
                 if (details.isNotBlank() && !details.endsWith(".jpg") && !details.endsWith(".png") && !details.endsWith(".pdf")) {
                     return@withContext QrCodeHelper.generateQrBitmap(details, 140, 140)
                 }
+            }
+
+            // 1b. Fast Thumbnail check
+            val scanId = cleanName.removePrefix("doc_").removePrefix("scan_").removeSuffix(".jpg").removeSuffix(".pdf")
+            val directThumb = File(context.filesDir, "thumbnails/thumb_$scanId.jpg")
+            if (directThumb.exists() && directThumb.isFile) {
+                val bmp = BitmapFactory.decodeFile(directThumb.absolutePath)
+                if (bmp != null) return@withContext bmp
             }
 
             // 2. Direct file resolution
@@ -68,23 +77,45 @@ object ScanThumbnailHelper {
             File(context.filesDir, "scanned_images"),
             File(context.filesDir, "pdfs"),
             File(context.filesDir, "images"),
+            File(context.filesDir, "documents"),
             File(context.filesDir, "exported_media"),
+            context.filesDir,
             context.cacheDir
         )
 
+        val namesToTry = listOf(
+            cleanName,
+            "$cleanName.jpg",
+            "$cleanName.png",
+            "$cleanName.pdf"
+        )
+
         for (dir in candidateDirs) {
-            val f = File(dir, cleanName)
-            if (f.exists() && f.isFile) return f
+            for (name in namesToTry) {
+                val f = File(dir, name)
+                if (f.exists() && f.isFile) return f
+            }
         }
 
         val direct = File(cleanName)
         if (direct.exists() && direct.isFile) return direct
 
         // Also check if any file inside scanned_images or pdfs matches
-        for (dir in listOf(File(context.filesDir, "scanned_images"), File(context.filesDir, "pdfs"))) {
+        for (dir in listOf(File(context.filesDir, "scanned_images"), File(context.filesDir, "pdfs"), File(context.filesDir, "images"))) {
             if (dir.exists()) {
                 val matches = dir.listFiles()?.filter { it.isFile && it.name.contains(cleanName, ignoreCase = true) }
                 if (!matches.isNullOrEmpty()) return matches.first()
+            }
+        }
+
+        // Fallback: match by timestamp proximity (within 10 minutes)
+        if (item.timestamp > 0) {
+            val allFiles = candidateDirs.flatMap { dir ->
+                if (dir.exists()) dir.listFiles()?.filter { it.isFile }?.toList() ?: emptyList() else emptyList()
+            }
+            val nearest = allFiles.minByOrNull { Math.abs(it.lastModified() - item.timestamp) }
+            if (nearest != null && Math.abs(nearest.lastModified() - item.timestamp) < 600_000) {
+                return nearest
             }
         }
 
