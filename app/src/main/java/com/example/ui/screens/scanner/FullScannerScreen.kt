@@ -840,19 +840,7 @@ fun FullScannerScreen(
                                     modifier = Modifier
                                         .padding(bottom = 12.dp)
                                         .clip(RoundedCornerShape(20.dp))
-                                        .clickable {
-                                            val act = context as? android.app.Activity
-                                            if (act != null) {
-                                                com.example.scanner.engine.GoogleDocumentScannerHelper.launch(
-                                                    activity = act,
-                                                    launcher = googleScannerLauncher,
-                                                    onFailure = { err ->
-                                                        android.widget.Toast.makeText(context, "Google Scanner: ${err.message}", android.widget.Toast.LENGTH_SHORT).show()
-                                                    }
-                                                )
-                                            }
-                                        }
-                                        .testTag("btn_google_ml_scanner")
+                                        .testTag("in_app_custom_scanner_badge")
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
@@ -866,7 +854,7 @@ fun FullScannerScreen(
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "Google AI Scanner (Bedsheet Auto-Crop)",
+                                            text = "In-App CamScanner • Auto Edge & Dewarp",
                                             color = Color.White,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold

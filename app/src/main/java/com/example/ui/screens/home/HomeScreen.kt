@@ -390,16 +390,7 @@ fun HomeScreen(
                             secondaryTextColor = secondaryTextColor,
                             onNavigateToScanner = onNavigateToScanner,
                             onLaunchGoogleScanner = {
-                                val act = context as? android.app.Activity
-                                if (act != null) {
-                                    com.example.scanner.engine.GoogleDocumentScannerHelper.launch(
-                                        activity = act,
-                                        launcher = googleScannerLauncher,
-                                        onFailure = { err ->
-                                            android.widget.Toast.makeText(context, "Scanner: ${err.message}", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    )
-                                }
+                                onNavigateToTool(Screen.Scanner.createRoute("DOCUMENT_PDF"))
                             }
                         )
                     }
@@ -1717,7 +1708,7 @@ private fun ScanAnythingHeroCard(
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
-                                text = "AI Auto-Scan",
+                                text = "Doc Scanner",
                                 style = TextStyle(
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
