@@ -42,6 +42,7 @@ credentials = "1.5.0"
 googleid = "1.1.1"
 zxingCore = "3.5.3"
 mlkitTextRecognition = "16.0.1"
+playServicesMlkitDocumentScanner = "16.0.0-beta1"
 
 
 [libraries]
@@ -98,6 +99,7 @@ androidx-credentials-play-services = { group = "androidx.credentials", name = "c
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
+play-services-mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "playServicesMlkitDocumentScanner" }
 
 
 [plugins]

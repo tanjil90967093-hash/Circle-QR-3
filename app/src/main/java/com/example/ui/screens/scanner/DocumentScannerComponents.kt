@@ -698,6 +698,7 @@ private fun CamScannerFilterItem(
                 DocumentFilter.ORIGINAL -> androidx.compose.material.icons.Icons.Default.Image
                 DocumentFilter.LIGHTEN -> androidx.compose.material.icons.Icons.Default.Brightness6
                 DocumentFilter.MAGIC_COLOR -> androidx.compose.material.icons.Icons.Default.AutoFixHigh
+                DocumentFilter.CAMSCANNER -> androidx.compose.material.icons.Icons.Default.AutoAwesome
                 DocumentFilter.NO_SHADOW -> androidx.compose.material.icons.Icons.Default.WbSunny
                 DocumentFilter.BLACK_WHITE -> androidx.compose.material.icons.Icons.Default.Contrast
                 DocumentFilter.GRAYSCALE -> androidx.compose.material.icons.Icons.Default.Gradient

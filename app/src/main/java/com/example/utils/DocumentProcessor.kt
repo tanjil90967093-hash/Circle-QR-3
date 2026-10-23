@@ -25,6 +25,7 @@ enum class DocumentFilter(val label: String) {
     ORIGINAL("Original"),
     LIGHTEN("Auto Enhance"),
     MAGIC_COLOR("Color"),
+    CAMSCANNER("CamScanner Magic"),
     NO_SHADOW("No Shadow"),
     GRAYSCALE("Grayscale"),
     BLACK_WHITE("Black & White");
@@ -32,8 +33,8 @@ enum class DocumentFilter(val label: String) {
     companion object {
         // Compatibility aliases
         val ENHANCE get() = LIGHTEN
-        val AUTO_ENHANCE get() = LIGHTEN
-        val SHARPEN get() = LIGHTEN
+        val AUTO_ENHANCE get() = CAMSCANNER
+        val SHARPEN get() = CAMSCANNER
     }
 }
 
@@ -441,19 +442,25 @@ object DocumentProcessor {
             scaledBmp.getPixels(pixels, 0, scaledW, 0, 0, scaledW, scaledH)
 
             val lum = FloatArray(scaledW * scaledH)
+            val isPaper = BooleanArray(scaledW * scaledH)
             var totalLum = 0f
             for (i in pixels.indices) {
                 val p = pixels[i]
                 val r = (p shr 16) and 0xFF
                 val g = (p shr 8) and 0xFF
                 val b = p and 0xFF
+                val maxC = maxOf(r, maxOf(g, b))
+                val minC = minOf(r, minOf(g, b))
+                val sat = if (maxC > 0) (maxC - minC).toFloat() / maxC else 0f
                 val l = 0.299f * r + 0.587f * g + 0.114f * b
                 lum[i] = l
+                // White, cream, or light notebook paper has low saturation and moderate-to-high lightness
+                isPaper[i] = (sat < 0.28f && l >= 75f)
                 totalLum += l
             }
             val avgLum = totalLum / (scaledW * scaledH)
 
-            // Compute Sobel gradient magnitude
+            // Compute edge gradient reinforced by paper-to-bedsheet boundary transitions
             val grad = FloatArray(scaledW * scaledH)
             var maxGrad = 0f
             for (y in 1 until scaledH - 1) {
@@ -462,16 +469,26 @@ object DocumentProcessor {
                     val idx = rowIdx + x
                     val gx = (lum[idx + 1] - lum[idx - 1]) * 0.5f
                     val gy = (lum[idx + scaledW] - lum[idx - scaledW]) * 0.5f
-                    val g = abs(gx) + abs(gy)
+                    var g = abs(gx) + abs(gy)
+
+                    // If pixel lies on a boundary between paper and bedsheet/background, boost edge score
+                    val paperNeighbors = (if (isPaper[idx - 1]) 1 else 0) +
+                            (if (isPaper[idx + 1]) 1 else 0) +
+                            (if (isPaper[idx - scaledW]) 1 else 0) +
+                            (if (isPaper[idx + scaledW]) 1 else 0)
+                    if (paperNeighbors in 1..3) {
+                        g += 25f
+                    }
+
                     grad[idx] = g
                     if (g > maxGrad) maxGrad = g
                 }
             }
 
-            val threshold = max(18f, maxGrad * 0.22f)
-            // Allow searching up to 45% inwards to catch notebooks taking up middle of bed
-            val searchMarginX = (scaledW * 0.45f).toInt()
-            val searchMarginY = (scaledH * 0.45f).toInt()
+            val threshold = max(16f, maxGrad * 0.20f)
+            // Allow searching up to 48% inwards to catch notebooks taking up middle of bed
+            val searchMarginX = (scaledW * 0.48f).toInt()
+            val searchMarginY = (scaledH * 0.48f).toInt()
 
             var bestTL: PointF? = null
             var minTLDist = Float.MAX_VALUE
@@ -753,16 +770,11 @@ object DocumentProcessor {
                 val combined = ColorMatrix().apply { setConcat(contrast, cm) }
                 applyColorMatrix(bitmap, combined)
             }
+            DocumentFilter.CAMSCANNER -> {
+                com.example.scanner.engine.DocumentEnhancementEngine.applyCamScannerMagic(bitmap)
+            }
             DocumentFilter.BLACK_WHITE -> {
-                val satMatrix = ColorMatrix().apply { setSaturation(0f) }
-                val thresholdMatrix = ColorMatrix(floatArrayOf(
-                    2.2f, 0f, 0f, 0f, -145f,
-                    0f, 2.2f, 0f, 0f, -145f,
-                    0f, 0f, 2.2f, 0f, -145f,
-                    0f, 0f, 0f, 1f, 0f
-                ))
-                val combined = ColorMatrix().apply { setConcat(thresholdMatrix, satMatrix) }
-                applyColorMatrix(bitmap, combined)
+                com.example.scanner.engine.DocumentEnhancementEngine.applyAdaptiveThreshold(bitmap)
             }
         }
     }

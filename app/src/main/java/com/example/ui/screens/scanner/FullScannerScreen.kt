@@ -176,7 +176,7 @@ fun FullScannerScreen(
     var pendingCropQuad by remember { mutableStateOf<DocumentQuad?>(null) }
     var croppedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var enhancedBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var activeFilter by remember { mutableStateOf(DocumentFilter.MAGIC_COLOR) }
+    var activeFilter by remember { mutableStateOf(DocumentFilter.CAMSCANNER) }
     var showCompareOriginal by remember { mutableStateOf(false) }
 
     // Multi-page batch session storage
@@ -191,6 +191,29 @@ fun FullScannerScreen(
     }
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameInput by remember { mutableStateOf(documentName) }
+
+    val googleScannerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val scanResult = com.example.scanner.engine.GoogleDocumentScannerHelper.parseResult(result.data)
+            if (scanResult != null) {
+                scope.launch {
+                    isProcessing = true
+                    processingMessage = "Saving enhanced scan..."
+                    val saved = com.example.scanner.engine.GoogleDocumentScannerHelper.persistScanResult(
+                        context, scanResult, documentName
+                    )
+                    isProcessing = false
+                    if (saved != null) {
+                        repository.addHistory("doc_scanner", saved.documentTitle, saved.primaryImageFile.name)
+                        Toast.makeText(context, "Scan saved successfully", Toast.LENGTH_SHORT).show()
+                        onNavigateToDocumentViewer(saved.primaryImageFile.absolutePath, saved.documentTitle)
+                    }
+                }
+            }
+        }
+    }
 
     // Modals
     var showOcrModal by remember { mutableStateOf(false) }
@@ -804,6 +827,50 @@ fun FullScannerScreen(
                                         } else {
                                             Spacer(modifier = Modifier.height(7.dp))
                                         }
+                                    }
+                                }
+                            }
+
+                            // Google AI Scanner (Instant Bed / Complex Background Auto-Crop)
+                            if (activeCameraMode.isDocument) {
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF0F172A).copy(alpha = 0.85f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CamScannerTealBright.copy(alpha = 0.8f)),
+                                    modifier = Modifier
+                                        .padding(bottom = 12.dp)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .clickable {
+                                            val act = context as? android.app.Activity
+                                            if (act != null) {
+                                                com.example.scanner.engine.GoogleDocumentScannerHelper.launch(
+                                                    activity = act,
+                                                    launcher = googleScannerLauncher,
+                                                    onFailure = { err ->
+                                                        android.widget.Toast.makeText(context, "Google Scanner: ${err.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        .testTag("btn_google_ml_scanner")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = CamScannerTealBright,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Google AI Scanner (Bedsheet Auto-Crop)",
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                     }
                                 }
                             }

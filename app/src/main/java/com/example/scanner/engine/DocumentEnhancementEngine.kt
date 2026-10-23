@@ -12,6 +12,7 @@ import kotlin.math.min
 enum class EnhancementMode(val label: String) {
     ORIGINAL("Original Color"),
     DOCUMENT_COLOR("Document Color"),
+    CAMSCANNER_MAGIC("CamScanner Magic"),
     GRAYSCALE("Grayscale"),
     BLACK_WHITE("Black & White"),
     SHADOW_REDUCTION("Shadow Reduction"),
@@ -24,8 +25,9 @@ object DocumentEnhancementEngine {
         return when (mode) {
             EnhancementMode.ORIGINAL -> applyOriginal(bitmap)
             EnhancementMode.DOCUMENT_COLOR -> applyDocumentColor(bitmap)
+            EnhancementMode.CAMSCANNER_MAGIC -> applyCamScannerMagic(bitmap)
             EnhancementMode.GRAYSCALE -> applyGrayscale(bitmap)
-            EnhancementMode.BLACK_WHITE -> applyBlackAndWhite(bitmap)
+            EnhancementMode.BLACK_WHITE -> applyAdaptiveThreshold(bitmap)
             EnhancementMode.SHADOW_REDUCTION -> applyShadowReduction(bitmap)
             EnhancementMode.SHARPENING -> applySharpening(bitmap)
         }
@@ -75,18 +77,88 @@ object DocumentEnhancementEngine {
     }
 
     /**
-     * Mode D: Black & White - Adaptive binarization producing clean dark text on light paper.
+     * Mode: CamScanner Magic Filter - High dynamic contrast that whitens paper background
+     * and intensifies ink strokes while preserving colored pen inks.
      */
-    private fun applyBlackAndWhite(bitmap: Bitmap): Bitmap {
-        val satMatrix = ColorMatrix().apply { setSaturation(0f) }
-        val binarize = ColorMatrix(floatArrayOf(
-            2.3f, 0f, 0f, 0f, -150f,
-            0f, 2.3f, 0f, 0f, -150f,
-            0f, 0f, 2.3f, 0f, -150f,
+    fun applyCamScannerMagic(bitmap: Bitmap): Bitmap {
+        val satMatrix = ColorMatrix().apply { setSaturation(1.22f) }
+        val contrast = 1.68f
+        val brightness = 26f
+        val contrastMatrix = ColorMatrix(floatArrayOf(
+            contrast, 0f, 0f, 0f, brightness - 128f * (contrast - 1f),
+            0f, contrast, 0f, 0f, brightness - 128f * (contrast - 1f),
+            0f, 0f, contrast, 0f, brightness - 128f * (contrast - 1f),
             0f, 0f, 0f, 1f, 0f
         ))
-        val combined = ColorMatrix().apply { setConcat(binarize, satMatrix) }
-        return applyColorMatrix(bitmap, combined)
+        val combined = ColorMatrix().apply { setConcat(contrastMatrix, satMatrix) }
+        val boosted = applyColorMatrix(bitmap, combined)
+        return applySharpening(boosted)
+    }
+
+    /**
+     * Mode: Adaptive Thresholding (CamScanner Clean Black & White).
+     * Computes local neighborhood means using an integral image O(1) algorithm,
+     * stripping bedsheet shadows and making text ultra-sharp black and paper pure white.
+     */
+    fun applyAdaptiveThreshold(source: Bitmap, windowSize: Int = 29, offset: Int = 9): Bitmap {
+        val w = source.width
+        val h = source.height
+        if (w < 8 || h < 8) return applyGrayscale(source)
+
+        return try {
+            val pixels = IntArray(w * h)
+            source.getPixels(pixels, 0, w, 0, 0, w, h)
+
+            val gray = IntArray(w * h)
+            for (i in pixels.indices) {
+                val c = pixels[i]
+                gray[i] = (((c shr 16) and 0xFF) * 77 + ((c shr 8) and 0xFF) * 150 + (c and 0xFF) * 29) shr 8
+            }
+
+            val integral = LongArray((w + 1) * (h + 1))
+            for (y in 0 until h) {
+                var rowSum = 0L
+                val rowOffset = (y + 1) * (w + 1)
+                val prevRowOffset = y * (w + 1)
+                val grayRow = y * w
+                for (x in 0 until w) {
+                    rowSum += gray[grayRow + x]
+                    integral[rowOffset + (x + 1)] = integral[prevRowOffset + (x + 1)] + rowSum
+                }
+            }
+
+            val half = windowSize / 2
+            val outPixels = IntArray(w * h)
+
+            for (y in 0 until h) {
+                val y1 = max(0, y - half)
+                val y2 = min(h - 1, y + half)
+                val intY1 = y1 * (w + 1)
+                val intY2 = (y2 + 1) * (w + 1)
+                val row = y * w
+
+                for (x in 0 until w) {
+                    val x1 = max(0, x - half)
+                    val x2 = min(w - 1, x + half)
+
+                    val count = (x2 - x1 + 1) * (y2 - y1 + 1)
+                    val sum = integral[intY2 + (x2 + 1)] -
+                            integral[intY1 + (x2 + 1)] -
+                            integral[intY2 + x1] +
+                            integral[intY1 + x1]
+
+                    val mean = (sum / count).toInt()
+                    val pixel = gray[row + x]
+                    outPixels[row + x] = if (pixel < (mean - offset)) Color.BLACK else Color.WHITE
+                }
+            }
+
+            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            result.setPixels(outPixels, 0, w, 0, 0, w, h)
+            result
+        } catch (_: Exception) {
+            applyGrayscale(source)
+        }
     }
 
     /**

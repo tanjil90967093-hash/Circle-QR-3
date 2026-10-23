@@ -120,6 +120,26 @@ fun HomeScreen(
     var ocrResultText by remember { mutableStateOf("") }
     var showOcrResultDialog by remember { mutableStateOf(false) }
 
+    val googleScannerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val scanResult = com.example.scanner.engine.GoogleDocumentScannerHelper.parseResult(result.data)
+            if (scanResult != null) {
+                scope.launch {
+                    val saved = com.example.scanner.engine.GoogleDocumentScannerHelper.persistScanResult(
+                        context, scanResult
+                    )
+                    if (saved != null) {
+                        repository.addHistory("doc_scanner", saved.documentTitle, saved.primaryImageFile.name)
+                        android.widget.Toast.makeText(context, "Scan saved to history", android.widget.Toast.LENGTH_SHORT).show()
+                        onNavigateToTool(Screen.DocumentViewer.createRoute(saved.primaryImageFile.absolutePath, saved.documentTitle))
+                    }
+                }
+            }
+        }
+    }
+
     // Activity Result Launchers
     val imageImportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -368,7 +388,19 @@ fun HomeScreen(
                             isReading = isReading,
                             primaryTextColor = primaryTextColor,
                             secondaryTextColor = secondaryTextColor,
-                            onNavigateToScanner = onNavigateToScanner
+                            onNavigateToScanner = onNavigateToScanner,
+                            onLaunchGoogleScanner = {
+                                val act = context as? android.app.Activity
+                                if (act != null) {
+                                    com.example.scanner.engine.GoogleDocumentScannerHelper.launch(
+                                        activity = act,
+                                        launcher = googleScannerLauncher,
+                                        onFailure = { err ->
+                                            android.widget.Toast.makeText(context, "Scanner: ${err.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            }
                         )
                     }
 
@@ -1577,7 +1609,8 @@ private fun ScanAnythingHeroCard(
     isReading: Boolean,
     primaryTextColor: Color,
     secondaryTextColor: Color,
-    onNavigateToScanner: () -> Unit
+    onNavigateToScanner: () -> Unit,
+    onLaunchGoogleScanner: () -> Unit = {}
 ) {
     val heroBg = when {
         isDark -> Color(0xFF1E293B)
@@ -1627,41 +1660,71 @@ private fun ScanAnythingHeroCard(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Pill Button "Start Scanning"
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = BrandBlue,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(22.dp))
-                        .clickable { onNavigateToScanner() }
-                        .testTag("start_scanning_btn")
+                // Action Buttons Row (Camera Scanner + Google AI Scanner)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Pill Button "Scanner"
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = BrandBlue,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable { onNavigateToScanner() }
+                            .testTag("start_scanning_btn")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Start Scanning",
-                            style = TextStyle(
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCodeScanner,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp)
                             )
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "Scanner",
+                                style = TextStyle(
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            )
+                        }
+                    }
+
+                    // Pill Button "AI Auto-Scan"
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = Color(0xFF0D9488),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable { onLaunchGoogleScanner() }
+                            .testTag("start_ai_scanning_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "AI Auto-Scan",
+                                style = TextStyle(
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                        }
                     }
                 }
             }

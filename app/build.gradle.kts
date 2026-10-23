@@ -100,6 +100,7 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.zxing.core)
   implementation(libs.mlkit.text.recognition)
+  implementation(libs.play.services.mlkit.document.scanner)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
