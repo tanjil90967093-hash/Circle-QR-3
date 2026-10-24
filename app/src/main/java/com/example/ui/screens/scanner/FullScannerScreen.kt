@@ -86,6 +86,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import com.example.data.local.entity.ScannedDocumentEntity
+import com.example.scanner.pdf.PdfConverterUtility
+import com.example.scanner.ocr.DocumentOcrService
 
 enum class CamScannerStep {
     CAMERA,
@@ -108,7 +111,8 @@ fun FullScannerScreen(
     initialMode: String = "DOCUMENT_PDF",
     onBack: () -> Unit,
     onNavigateToResult: (content: String, format: String) -> Unit,
-    onNavigateToDocumentViewer: (filePath: String, title: String) -> Unit = { _, _ -> }
+    onNavigateToDocumentViewer: (filePath: String, title: String) -> Unit = { _, _ -> },
+    onNavigateToPastScans: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -411,11 +415,11 @@ fun FullScannerScreen(
         )
     }
 
-    // Save final document (PDF or image)
+    // Save final document (PDF compilation + ML Kit OCR + Room persistence)
     fun finalizeAndSaveDocument() {
         scope.launch {
             isProcessing = true
-            processingMessage = "Creating PDF..."
+            processingMessage = "Compiling PDF..."
 
             val pagesToSave = if (documentPages.isNotEmpty()) {
                 documentPages.map { it.processed }
@@ -431,17 +435,46 @@ fun FullScannerScreen(
                 return@launch
             }
 
-            val pdf = withContext(Dispatchers.IO) {
-                PdfUtils.imagesToPdf(context, pagesToSave, documentName)
+            // 1. PDF Conversion Utility
+            val pdfResult = withContext(Dispatchers.IO) {
+                PdfConverterUtility.convertBitmapsToPdf(
+                    context = context,
+                    bitmaps = pagesToSave,
+                    fileNamePrefix = documentName
+                )
+            }
+
+            // 2. OCR Text Extraction Service
+            processingMessage = "Extracting text with OCR..."
+            val ocrResult = withContext(Dispatchers.IO) {
+                DocumentOcrService.recognizeMultiPageDocument(
+                    bitmaps = pagesToSave,
+                    documentTitle = documentName
+                )
             }
 
             isProcessing = false
-            if (pdf != null) {
-                savedPdfFile = pdf
+            if (pdfResult != null) {
+                savedPdfFile = pdfResult.file
+
+                // 3. Persist metadata into Room database schema
+                val docEntity = ScannedDocumentEntity(
+                    title = documentName,
+                    originalFileName = pdfResult.file.name,
+                    pdfFilePath = pdfResult.file.absolutePath,
+                    thumbnailPath = pdfResult.thumbnailFile?.absolutePath,
+                    pageCount = pdfResult.pageCount,
+                    fileSizeBytes = pdfResult.fileSizeBytes,
+                    ocrExtractedText = ocrResult.fullClipboardText.ifBlank { null },
+                    filterUsed = activeFilter.label,
+                    createdAtTimestamp = System.currentTimeMillis()
+                )
+                repository.insertScannedDocument(docEntity)
+
                 repository.addHistory(
                     "doc_scanner",
                     "$documentName (${pagesToSave.size} pages)",
-                    pdf.name
+                    pdfResult.file.name
                 )
                 showSaveSuccessDialog = true
             } else {
@@ -771,6 +804,23 @@ fun FullScannerScreen(
                                     Icon(
                                         imageVector = Icons.Default.FlipCameraAndroid,
                                         contentDescription = "Flip Camera",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+
+                                // Past Scans / Saved Documents List
+                                IconButton(
+                                    onClick = onNavigateToPastScans,
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.5f))
+                                        .testTag("btn_past_scans_top")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FolderOpen,
+                                        contentDescription = "Past Scans",
                                         tint = Color.White,
                                         modifier = Modifier.size(22.dp)
                                     )
@@ -1282,7 +1332,7 @@ fun FullScannerScreen(
                                 onExtractText = {
                                     scope.launch {
                                         isProcessing = true
-                                        val text = DocumentProcessor.extractTextReal(enhBmp)
+                                        val text = DocumentOcrService.recognizeText(enhBmp)
                                         isProcessing = false
                                         ocrExtractedText = text
                                         showOcrModal = true

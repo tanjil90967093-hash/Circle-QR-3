@@ -42,6 +42,7 @@ sealed class Screen(val route: String) {
         }
     }
     object History : Screen("history")
+    object PastScans : Screen("past_scans")
     object Pro : Screen("pro")
     object Settings : Screen("settings")
 

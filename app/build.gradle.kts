@@ -103,6 +103,8 @@ dependencies {
   implementation(libs.play.services.mlkit.document.scanner)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
+  // OpenCV for Android
+  implementation("org.opencv:opencv:4.9.0")
   // Uncomment to use Firestore:
   // implementation(libs.firebase.firestore)
 

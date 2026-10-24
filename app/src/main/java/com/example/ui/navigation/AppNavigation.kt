@@ -172,11 +172,25 @@ fun AppNavigation() {
                     },
                     onNavigateToDocumentViewer = { filePath, title ->
                         navController.navigate(Screen.DocumentViewer.createRoute(filePath, title))
+                    },
+                    onNavigateToPastScans = {
+                        navController.navigate(Screen.PastScans.route)
                     }
                 )
             }
 
-
+            // Dedicated Past Scans (Room Schema List UI)
+            composable(Screen.PastScans.route) {
+                PastScansScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToScanner = {
+                        navController.navigate(Screen.Scanner.createRoute("DOCUMENT_PDF"))
+                    },
+                    onOpenDocumentViewer = { filePath, title ->
+                        navController.navigate(Screen.DocumentViewer.createRoute(filePath, title))
+                    }
+                )
+            }
 
             // 5. Scan Result Screen
             composable(

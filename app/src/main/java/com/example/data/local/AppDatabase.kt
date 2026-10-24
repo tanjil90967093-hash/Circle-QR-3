@@ -7,12 +7,14 @@ import androidx.room.RoomDatabase
 import com.example.data.local.dao.ExpenseDao
 import com.example.data.local.dao.HistoryDao
 import com.example.data.local.dao.NoteDao
+import com.example.data.local.dao.ScannedDocumentDao
 import com.example.data.local.dao.UtilityDao
 import com.example.data.local.entity.ExpenseEntity
 import com.example.data.local.entity.FavoriteEntity
 import com.example.data.local.entity.HistoryEntity
 import com.example.data.local.entity.NoteEntity
 import com.example.data.local.entity.RecentToolEntity
+import com.example.data.local.entity.ScannedDocumentEntity
 
 @Database(
     entities = [
@@ -20,9 +22,10 @@ import com.example.data.local.entity.RecentToolEntity
         NoteEntity::class,
         HistoryEntity::class,
         FavoriteEntity::class,
-        RecentToolEntity::class
+        RecentToolEntity::class,
+        ScannedDocumentEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun historyDao(): HistoryDao
     abstract fun utilityDao(): UtilityDao
+    abstract fun scannedDocumentDao(): ScannedDocumentDao
 
     companion object {
         @Volatile

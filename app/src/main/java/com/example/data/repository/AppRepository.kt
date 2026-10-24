@@ -13,6 +13,7 @@ import com.example.data.local.entity.FavoriteEntity
 import com.example.data.local.entity.HistoryEntity
 import com.example.data.local.entity.NoteEntity
 import com.example.data.local.entity.RecentToolEntity
+import com.example.data.local.entity.ScannedDocumentEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,7 @@ class AppRepository(private val context: Context) {
     private val noteDao = database.noteDao()
     private val historyDao = database.historyDao()
     private val utilityDao = database.utilityDao()
+    private val scannedDocumentDao = database.scannedDocumentDao()
 
     private val prefs: SharedPreferences = context.getSharedPreferences("utility_hub_prefs", Context.MODE_PRIVATE)
     private val themeKey = stringPreferencesKey("theme_mode")
@@ -176,4 +178,13 @@ class AppRepository(private val context: Context) {
     suspend fun recordToolUsage(toolId: String) {
         utilityDao.logToolUsage(RecentToolEntity(toolId = toolId, lastUsedTimestamp = System.currentTimeMillis()))
     }
+
+    // Scanned Documents (Room)
+    fun getAllScannedDocuments(): Flow<List<ScannedDocumentEntity>> = scannedDocumentDao.getAllDocuments()
+    fun searchScannedDocuments(query: String): Flow<List<ScannedDocumentEntity>> = scannedDocumentDao.searchDocuments(query)
+    suspend fun getScannedDocumentById(id: Long): ScannedDocumentEntity? = scannedDocumentDao.getDocumentById(id)
+    suspend fun insertScannedDocument(doc: ScannedDocumentEntity): Long = scannedDocumentDao.insertDocument(doc)
+    suspend fun updateScannedDocument(doc: ScannedDocumentEntity) = scannedDocumentDao.updateDocument(doc)
+    suspend fun deleteScannedDocument(doc: ScannedDocumentEntity) = scannedDocumentDao.deleteDocument(doc)
+    suspend fun deleteScannedDocumentById(id: Long) = scannedDocumentDao.deleteDocumentById(id)
 }

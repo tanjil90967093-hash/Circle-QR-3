@@ -497,7 +497,17 @@ fun HomeScreen(
                                     testTag = "quick_category_all",
                                     modifier = Modifier.weight(1f)
                                 )
-                                Spacer(modifier = Modifier.weight(1f))
+                                QuickCategoryCircleItem(
+                                    title = "Past Scans",
+                                    icon = Icons.Default.FolderSpecial,
+                                    iconColor = Color(0xFF8B5CF6),
+                                    isDark = isDark,
+                                    isReading = isReading,
+                                    primaryTextColor = primaryTextColor,
+                                    onClick = { onNavigateToTool(Screen.PastScans.route) },
+                                    testTag = "quick_category_past_scans",
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }

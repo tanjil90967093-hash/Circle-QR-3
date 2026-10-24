@@ -11,6 +11,11 @@ class UtilityHubApp : Application() {
         super.onCreate()
         instance = this
         repository = AppRepository(this)
+        if (org.opencv.android.OpenCVLoader.initLocal()) {
+            android.util.Log.d("OpenCV", "OpenCV native library initialized successfully")
+        } else {
+            android.util.Log.e("OpenCV", "Failed to initialize OpenCV")
+        }
     }
 
     companion object {
