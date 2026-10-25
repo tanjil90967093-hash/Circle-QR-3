@@ -43,6 +43,10 @@ sealed class Screen(val route: String) {
     }
     object History : Screen("history")
     object PastScans : Screen("past_scans")
+    object DocScan : Screen("doc_scan")
+    object DocScanDetail : Screen("doc_scan_detail?docId={docId}") {
+        fun createRoute(docId: String) = "doc_scan_detail?docId=$docId"
+    }
     object Pro : Screen("pro")
     object Settings : Screen("settings")
 

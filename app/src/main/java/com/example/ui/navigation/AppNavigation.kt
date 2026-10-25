@@ -27,6 +27,7 @@ import com.example.ui.screens.pro.ProScreen
 import com.example.ui.screens.productivity.*
 import com.example.ui.screens.qr.QrGeneratorScreen
 import com.example.ui.screens.scanner.*
+import com.example.docscan.ui.*
 import com.example.ui.screens.security.PasswordGeneratorScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.storage.FileManagerScreen
@@ -187,6 +188,39 @@ fun AppNavigation() {
                         navController.navigate(Screen.Scanner.createRoute("DOCUMENT_PDF"))
                     },
                     onOpenDocumentViewer = { filePath, title ->
+                        navController.navigate(Screen.DocumentViewer.createRoute(filePath, title))
+                    }
+                )
+            }
+
+            // DocScan Main Screen (Ported from Nykz/cap-document-scanner)
+            composable(Screen.DocScan.route) {
+                DocScanMainScreen(
+                    onBack = { navController.popBackStack() },
+                    onStartScan = {
+                        navController.navigate(Screen.Scanner.createRoute("DOCUMENT_PDF"))
+                    },
+                    onOpenDocumentDetail = { docId ->
+                        navController.navigate(Screen.DocScanDetail.createRoute(docId))
+                    }
+                )
+            }
+
+            // DocScan Document Detail Screen
+            composable(
+                route = Screen.DocScanDetail.route,
+                arguments = listOf(
+                    navArgument("docId") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) { backStackEntry ->
+                val docId = backStackEntry.arguments?.getString("docId") ?: ""
+                DocScanDetailScreen(
+                    documentId = docId,
+                    onBack = { navController.popBackStack() },
+                    onOpenPdfViewer = { filePath, title ->
                         navController.navigate(Screen.DocumentViewer.createRoute(filePath, title))
                     }
                 )

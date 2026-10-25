@@ -504,7 +504,7 @@ fun HomeScreen(
                                     isDark = isDark,
                                     isReading = isReading,
                                     primaryTextColor = primaryTextColor,
-                                    onClick = { onNavigateToTool(Screen.PastScans.route) },
+                                    onClick = { onNavigateToTool(Screen.DocScan.route) },
                                     testTag = "quick_category_past_scans",
                                     modifier = Modifier.weight(1f)
                                 )
